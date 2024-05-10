@@ -28,10 +28,34 @@ async function run() {
     const assignmentsCollection = client
       .db("assignmentDB")
       .collection("assignments");
+
     app.get("/assignments", async (req, res) => {
       const cursor = assignmentsCollection.find();
       const result = await cursor.toArray();
       res.send(result); // after this the localhost:5000/spots will show the data
+    });
+    app.post("/assignments", async (req, res) => {
+      const newAssignment = req.body;
+      console.log(newAssignment);
+      const result = await assignmentsCollection.insertOne(newAssignment);
+      console.log(result);
+      res.send(result);
+    });
+
+    app.get("/assignment/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await assignmentsCollection.findOne(query);
+      console.log(result);
+      res.send(result);
+    });
+
+    // delete items
+    app.delete("/assignment/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await assignmentsCollection.deleteOne(query);
+      res.send(result);
     });
 
     await client.db("admin").command({ ping: 1 });
