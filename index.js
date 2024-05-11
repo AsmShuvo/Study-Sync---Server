@@ -31,6 +31,7 @@ async function run() {
     const assignmentsCollection = client
       .db("assignmentDB")
       .collection("assignments");
+    const submitCollection = client.db("assignmentDB").collection("submits");
 
     app.get("/assignments", async (req, res) => {
       const cursor = assignmentsCollection.find();
@@ -87,6 +88,14 @@ async function run() {
       );
       res.send(result);
     });
+    // post submitted assignments
+    app.post("/submitted", async (req, res) => {
+      const submittedAssignment = req.body;
+      console.log(submittedAssignment);
+      const result = await submitCollection.insertOne(submittedAssignment);
+      // console.log(result);
+      res.send(result);
+    });
 
     // client side error
     app.use((req, res) => {
@@ -98,7 +107,6 @@ async function run() {
     //     res.status(500).send("server error");
     //   }
     // });
-
 
     await client.db("admin").command({ ping: 1 });
     console.log(
