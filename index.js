@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const morgan = require("morgan");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const app = express();
@@ -8,6 +9,8 @@ const port = process.env.PORT || 3000;
 // middleware
 app.use(cors());
 app.use(express.json());
+
+app.use(morgan("dev"));
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.ezfvwv5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -38,7 +41,7 @@ async function run() {
       const newAssignment = req.body;
       console.log(newAssignment);
       const result = await assignmentsCollection.insertOne(newAssignment);
-      console.log(result);
+      // console.log(result);
       res.send(result);
     });
 
@@ -46,7 +49,7 @@ async function run() {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await assignmentsCollection.findOne(query);
-      console.log(result);
+      // console.log(result);
       res.send(result);
     });
 
@@ -57,6 +60,45 @@ async function run() {
       const result = await assignmentsCollection.deleteOne(query);
       res.send(result);
     });
+
+    // update assignmnet:
+    app.put("/assignment/:id", async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedAssignment = req.body;
+      console.log(updatedAssignment);
+      const assignment = {
+        $set: {
+          image: updatedAssignment.image,
+          title: updatedAssignment.title,
+          deadline: updatedAssignment.deadline,
+          details: updatedAssignment.details,
+          difficulty: updatedAssignment.difficulty,
+          marks: updatedAssignment.marks,
+        },
+      };
+      const result = await assignmentsCollection.updateOne(
+        filter,
+        assignment,
+        options
+      );
+      res.send(result);
+    });
+
+    // client side error
+    app.use((req, res) => {
+      res.status(404).send("not found");
+    });
+
+    // app.use((error, req, res, next) => {
+    //   if (error) {
+    //     res.status(500).send("server error");
+    //   }
+    // });
+
 
     await client.db("admin").command({ ping: 1 });
     console.log(
