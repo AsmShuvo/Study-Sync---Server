@@ -7,7 +7,15 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "https://studysync-3a9c1.firebaseapp.com",
+      "https://studysync-3a9c1.web.app",
+      "http://localhost:5173",
+    ],
+  })
+);
 app.use(express.json());
 
 app.use(morgan("dev"));
@@ -36,7 +44,7 @@ async function run() {
     app.get("/assignments", async (req, res) => {
       const cursor = assignmentsCollection.find();
       const result = await cursor.toArray();
-      res.send(result); // after this the localhost:5000/spots will show the data
+      res.send(result); // after this the localhost:5000/assignments will show the data
     });
     app.post("/assignments", async (req, res) => {
       const newAssignment = req.body;
@@ -51,6 +59,13 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const result = await assignmentsCollection.findOne(query);
       // console.log(result);
+      res.send(result);
+    });
+    app.get("/submitted/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await submitCollection.findOne(query);
+      console.log(result);
       res.send(result);
     });
 
@@ -81,7 +96,35 @@ async function run() {
           marks: updatedAssignment.marks,
         },
       };
-      const result = await assignmentsCollection.updateOne(
+      const result = await submitCollection.updateOne(
+        filter,
+        assignment,
+        options
+      );
+      res.send(result);
+    });
+    // update the review and marks
+    app.put("/submitted/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const reviewedAssignment = req.body;
+      console.log("Reviewd:", reviewedAssignment);
+      const assignment = {
+        $set: {
+          email: reviewedAssignment.email,
+          doc: reviewedAssignment.doc,
+          obtained: reviewedAssignment.obtained,
+          pending_status: reviewedAssignment.pending_status,
+          feedback: reviewedAssignment.feedback,
+          title: reviewedAssignment.title,
+          marks: reviewedAssignment.marks,
+          difficulty: reviewedAssignment.difficulty,
+          details: reviewedAssignment.details,
+        },
+      };
+      const result = await submitCollection.updateOne(
         filter,
         assignment,
         options
@@ -97,9 +140,10 @@ async function run() {
       res.send(result);
     });
 
-    // client side error
-    app.use((req, res) => {
-      res.status(404).send("not found");
+    app.get("/submitted", async (req, res) => {
+      const cursor = submitCollection.find();
+      const result = await cursor.toArray();
+      res.send(result); // after this the localhost:5000/submitted will show the data
     });
 
     // app.use((error, req, res, next) => {
@@ -108,7 +152,7 @@ async function run() {
     //   }
     // });
 
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!!!!"
     );
@@ -120,7 +164,7 @@ async function run() {
 run().catch(console.dir);
 
 app.get("/", (req, res) => {
-  res.send("StudySync is running");
+  res.send("StudySync server is running");
 });
 app.listen(port, () => {
   console.log(`server is runnig on port ${port}`);
