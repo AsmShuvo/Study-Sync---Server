@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const app = express();
@@ -15,9 +16,11 @@ app.use(
       "https://studysync-3a9c1.web.app",
       "http://localhost:5173",
     ],
+    credentials: true,
   })
 );
 app.use(express.json());
+app.use(cookieParser());
 
 app.use(morgan("dev"));
 
@@ -45,8 +48,15 @@ async function run() {
     app.post("/jwt", async (req, res) => {
       const user = req.body;
       console.log("jwt:", user);
-      const token = jwt.sign(user, "secret", { expiresIn: "1h" });
-      res.send(token);
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: false,
+        })
+        .send({ success: true });
     });
 
     app.get("/assignments", async (req, res) => {
@@ -54,6 +64,7 @@ async function run() {
       const result = await cursor.toArray();
       res.send(result); // after this the localhost:5000/assignments will show the data
     });
+
     app.post("/assignments", async (req, res) => {
       const newAssignment = req.body;
       console.log(newAssignment);
@@ -150,6 +161,7 @@ async function run() {
 
     app.get("/submitted", async (req, res) => {
       console.log(req.query.email);
+      console.log("tokeeeeennnnnn", req.cookies.token);
       let query = {};
       if (req.query?.email) {
         query = { email: req.query.email };
