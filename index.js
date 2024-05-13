@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
+const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const app = express();
@@ -40,6 +41,13 @@ async function run() {
       .db("assignmentDB")
       .collection("assignments");
     const submitCollection = client.db("assignmentDB").collection("submits");
+    // auth related API
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      console.log("jwt:", user);
+      const token = jwt.sign(user, "secret", { expiresIn: "1h" });
+      res.send(token);
+    });
 
     app.get("/assignments", async (req, res) => {
       const cursor = assignmentsCollection.find();
@@ -141,7 +149,12 @@ async function run() {
     });
 
     app.get("/submitted", async (req, res) => {
-      const cursor = submitCollection.find();
+      console.log(req.query.email);
+      let query = {};
+      if (req.query?.email) {
+        query = { email: req.query.email };
+      }
+      const cursor = submitCollection.find(query);
       const result = await cursor.toArray();
       res.send(result); // after this the localhost:5000/submitted will show the data
     });
