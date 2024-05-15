@@ -21,7 +21,6 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
-
 app.use(morgan("dev"));
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.ezfvwv5.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -34,6 +33,34 @@ const client = new MongoClient(uri, {
   },
 });
 
+// created middleware
+const logger = async (req, res, next) => {
+  console.log("called", req.host, req.originalUrl);
+  next();
+};
+
+const verifyToken = async (req, res, next) => {
+  const token = req.cookies?.token;
+
+  console.log("in midleware:", token);
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized_" });
+  }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    // err
+
+    if (err) {
+      console.log("err:", err);
+      return res.status(401).send({ message: "You are unauthorized" });
+    }
+    // valid
+    console.log("Value in token", decoded);
+    req.user = decoded;
+
+    next();
+  });
+};
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -44,8 +71,9 @@ async function run() {
       .db("assignmentDB")
       .collection("assignments");
     const submitCollection = client.db("assignmentDB").collection("submits");
+
     // auth related API
-    app.post("/jwt", async (req, res) => {
+    app.post("/jwt", logger, async (req, res) => {
       const user = req.body;
       console.log("jwt:", user);
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
@@ -54,12 +82,14 @@ async function run() {
       res
         .cookie("token", token, {
           httpOnly: true,
-          secure: false,
+          secure: process.env.NODE_ENV === "production" ? true : false,
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+          maxAge: 24 * 60 * 60 * 1000,
         })
         .send({ success: true });
     });
 
-    app.get("/assignments", async (req, res) => {
+    app.get("/assignments", logger, async (req, res) => {
       const cursor = assignmentsCollection.find();
       const result = await cursor.toArray();
       res.send(result); // after this the localhost:5000/assignments will show the data
@@ -96,12 +126,32 @@ async function run() {
       res.send(result);
     });
 
+    //=============== submitted ========
+    app.get("/submitted", logger, verifyToken, async (req, res) => {
+      console.log(req.cookies.token);
+      console.log(req.query.email, req.user.email);
+      if (req.query.email) {
+        if (req.query.email != req.user.email) {
+          console.log("forbidden email");
+          return res.status(403).send({ message: "forbidden access" });
+        }
+      }
+      console.log("Verified user");
+      let query = {};
+      if (req.query?.email) {
+        query = { email: req.query.email };
+      }
+      const cursor = submitCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result); // after this the localhost:5000/submitted will show the data
+    });
     // update assignmnet:
     app.put("/assignment/:id", async (req, res) => {
       const id = req.params.id;
       console.log(id);
 
       const filter = { _id: new ObjectId(id) };
+      console.log(filter);
       const options = { upsert: true };
       const updatedAssignment = req.body;
       console.log(updatedAssignment);
@@ -113,9 +163,10 @@ async function run() {
           details: updatedAssignment.details,
           difficulty: updatedAssignment.difficulty,
           marks: updatedAssignment.marks,
+          email: updatedAssignment.email,
         },
       };
-      const result = await submitCollection.updateOne(
+      const result = await assignmentsCollection.updateOne(
         filter,
         assignment,
         options
@@ -157,18 +208,6 @@ async function run() {
       const result = await submitCollection.insertOne(submittedAssignment);
       // console.log(result);
       res.send(result);
-    });
-
-    app.get("/submitted", async (req, res) => {
-      console.log(req.query.email);
-      console.log("tokeeeeennnnnn", req.cookies.token);
-      let query = {};
-      if (req.query?.email) {
-        query = { email: req.query.email };
-      }
-      const cursor = submitCollection.find(query);
-      const result = await cursor.toArray();
-      res.send(result); // after this the localhost:5000/submitted will show the data
     });
 
     // app.use((error, req, res, next) => {
